@@ -1,0 +1,26 @@
+# Environment
+.env
+
+# Dependencies
+node_modules/
+
+# Build output
+.nyc_output/
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DO Functions
+.deployed
+__deployer__.zip
+
+# Local Claude instructions
+CLAUDE.local

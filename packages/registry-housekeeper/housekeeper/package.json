@@ -1,0 +1,8 @@
+{
+  "name": "do-registry-housekeeper",
+  "version": "1.0.0",
+  "description": "DigitalOcean Function to clean up old container registry tags",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {}
+}

@@ -1,0 +1,24 @@
+targetNamespace: ''
+parameters: {}
+environment:
+  DO_API_TOKEN: ${DO_API_TOKEN}
+  DO_REGISTRY_NAME: ${DO_REGISTRY_NAME}
+  MAX_TAGS_TO_KEEP: ${MAX_TAGS_TO_KEEP}
+  DRY_RUN: ${DRY_RUN}
+packages:
+  - name: registry-housekeeper
+    environment: {}
+    parameters: {}
+    annotations: {}
+    functions:
+      - name: housekeeper
+        binary: false
+        main: ''
+        runtime: nodejs:18
+        web: false
+        parameters: {}
+        environment: {}
+        annotations: {}
+        limits:
+          timeout: 120000
+          memory: 256
