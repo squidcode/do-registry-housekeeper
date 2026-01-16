@@ -1,0 +1,38 @@
+{
+  "name": "do-registry-housekeeper",
+  "version": "1.0.0",
+  "description": "DigitalOcean Function that automatically untags old container images from DO Container Registry",
+  "private": true,
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ktamas77/do-registry-housekeeper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ktamas77/do-registry-housekeeper/issues"
+  },
+  "homepage": "https://github.com/ktamas77/do-registry-housekeeper#readme"
+}

@@ -50,12 +50,12 @@ MAX_TAGS_TO_KEEP=10
 DRY_RUN=false
 ```
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DO_API_TOKEN` | Yes | - | Your DigitalOcean API token |
-| `DO_REGISTRY_NAME` | Yes | - | Your registry name (e.g., `my-registry` from `registry.digitalocean.com/my-registry`) |
-| `MAX_TAGS_TO_KEEP` | No | `10` | Number of most recent tags to keep per repository |
-| `DRY_RUN` | No | `false` | Set to `true` to preview deletions without actually deleting |
+| Variable           | Required | Default | Description                                                                           |
+| ------------------ | -------- | ------- | ------------------------------------------------------------------------------------- |
+| `DO_API_TOKEN`     | Yes      | -       | Your DigitalOcean API token                                                           |
+| `DO_REGISTRY_NAME` | Yes      | -       | Your registry name (e.g., `my-registry` from `registry.digitalocean.com/my-registry`) |
+| `MAX_TAGS_TO_KEEP` | No       | `10`    | Number of most recent tags to keep per repository                                     |
+| `DRY_RUN`          | No       | `false` | Set to `true` to preview deletions without actually deleting                          |
 
 ### 4. Connect to DO Functions (First Time Only)
 
@@ -128,6 +128,7 @@ This function **untags** images - it removes the tag reference, not the actual i
 - **Garbage Collection**: Actually deletes unreferenced image data and frees storage
 
 To free storage after untagging, either:
+
 - Wait for DO's automatic GC (runs periodically)
 - Trigger GC manually from the [Container Registry page](https://cloud.digitalocean.com/registry) → **Settings** → **Start Garbage Collection**
 
@@ -187,7 +188,7 @@ The default timeout is 120 seconds (2 minutes), which handles most registries. F
 
 ```yaml
 limits:
-  timeout: 180000  # 3 minutes
+  timeout: 180000 # 3 minutes
   memory: 256
 ```
 
