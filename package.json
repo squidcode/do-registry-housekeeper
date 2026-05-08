@@ -8,7 +8,12 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "connect": "doctl --context squidcode serverless connect registry-housekeeper",
+    "deploy": "doppler run -- doctl --context squidcode serverless deploy .",
+    "deploy:dry": "DRY_RUN=true doppler run -- doctl --context squidcode serverless deploy .",
+    "invoke": "doctl --context squidcode serverless functions invoke registry-housekeeper/housekeeper",
+    "logs": "doctl --context squidcode serverless activations logs --last"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
@@ -29,10 +34,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ktamas77/do-registry-housekeeper.git"
+    "url": "git+https://github.com/squidcode/do-registry-housekeeper.git"
   },
   "bugs": {
-    "url": "https://github.com/ktamas77/do-registry-housekeeper/issues"
+    "url": "https://github.com/squidcode/do-registry-housekeeper/issues"
   },
-  "homepage": "https://github.com/ktamas77/do-registry-housekeeper#readme"
+  "homepage": "https://github.com/squidcode/do-registry-housekeeper#readme"
 }

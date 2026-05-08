@@ -13,72 +13,57 @@ A DigitalOcean Function that automatically cleans up old container image tags fr
 
 ## Prerequisites
 
-- [DigitalOcean account](https://cloud.digitalocean.com/)
-- [DigitalOcean Container Registry](https://docs.digitalocean.com/products/container-registry/)
-- [doctl CLI](https://docs.digitalocean.com/reference/doctl/how-to/install/) installed and authenticated
-- [DO Serverless Functions](https://docs.digitalocean.com/products/functions/) connected to your account
+- [DigitalOcean account](https://cloud.digitalocean.com/) (the `squidcode` team)
+- [doctl CLI](https://docs.digitalocean.com/reference/doctl/how-to/install/), authenticated with a `squidcode` context (`doctl auth init --context squidcode`)
+- [Doppler CLI](https://docs.doppler.com/docs/cli), logged in to the Squidcode workplace
+- Node.js + npm
 
 ## Setup
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/ktamas77/do-registry-housekeeper.git
+git clone git@github.com:squidcode/do-registry-housekeeper.git
 cd do-registry-housekeeper
+npm install
 ```
 
-### 2. Create a DigitalOcean API Token
+### 2. Configure Secrets (Doppler)
 
-1. Go to [API Tokens](https://cloud.digitalocean.com/account/api/tokens) in your DO account
-2. Click "Generate New Token"
-3. Give it a name (e.g., "registry-housekeeper")
-4. Select **Read** and **Write** scopes (needs write to delete tags)
-5. Copy the generated token
+Secrets live in Doppler — no `.env` file is needed. The repo is scoped to `squidcode-do-registry-housekeeper@prd` (see `.doppler.yaml` / `~/.doppler/.doppler.yaml`); `doppler secrets` from inside the repo lists the four expected keys:
 
-### 3. Configure Environment Variables
+| Variable           | Required | Default | Description                                                                      |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------------------- |
+| `DO_API_TOKEN`     | Yes      | -       | DigitalOcean API token (Read + Write scopes — needed to untag images)            |
+| `DO_REGISTRY_NAME` | Yes      | -       | Registry name (e.g., `my-registry` from `registry.digitalocean.com/my-registry`) |
+| `MAX_TAGS_TO_KEEP` | No       | `10`    | Number of most recent tags to keep per repository                                |
+| `DRY_RUN`          | No       | `false` | `true` to preview deletions without applying                                     |
+
+To rotate the DO token: generate a new one in the DO console, then `doppler secrets set DO_API_TOKEN=...` (or update via the Doppler dashboard), then redeploy with `npm run deploy`.
+
+### 3. Connect to the DO Functions Namespace (First Time Only)
 
 ```bash
-cp .env.example .env
+npm run connect
 ```
 
-Edit `.env` with your settings:
+Wraps `doctl --context squidcode serverless connect registry-housekeeper`. The namespace already exists in `nyc1` (`fn-c6719ebd-…`); this just points your local `doctl` cache at it.
 
-```env
-DO_API_TOKEN=your_digitalocean_api_token_here
-DO_REGISTRY_NAME=your_registry_name
-MAX_TAGS_TO_KEEP=10
-DRY_RUN=false
-```
-
-| Variable           | Required | Default | Description                                                                           |
-| ------------------ | -------- | ------- | ------------------------------------------------------------------------------------- |
-| `DO_API_TOKEN`     | Yes      | -       | Your DigitalOcean API token                                                           |
-| `DO_REGISTRY_NAME` | Yes      | -       | Your registry name (e.g., `my-registry` from `registry.digitalocean.com/my-registry`) |
-| `MAX_TAGS_TO_KEEP` | No       | `10`    | Number of most recent tags to keep per repository                                     |
-| `DRY_RUN`          | No       | `false` | Set to `true` to preview deletions without actually deleting                          |
-
-### 4. Connect to DO Functions (First Time Only)
-
-If you haven't used DO Functions before:
+### 4. Deploy
 
 ```bash
-# Install serverless support
-doctl serverless install
-
-# Create a new namespace (or use an existing one)
-doctl serverless namespaces create --label registry-housekeeper --region nyc1
-
-# Or connect to an existing namespace
-doctl serverless connect
+npm run deploy
 ```
 
-### 5. Deploy
+Equivalent to `doppler run -- doctl --context squidcode serverless deploy .`. Doppler injects the four secrets into the deploy process; `project.yml` interpolates them into the function's runtime env.
+
+For a deploy with `DRY_RUN=true` overriding whatever's in Doppler:
 
 ```bash
-doctl serverless deploy .
+npm run deploy:dry
 ```
 
-### 6. Set Up Scheduled Trigger (Optional)
+### 5. Set Up Scheduled Trigger (Optional)
 
 To run the function automatically on a schedule, create a trigger via the DO Console:
 
@@ -101,13 +86,13 @@ If you set up a scheduled trigger (Step 6 above), the function runs automaticall
 Test the function manually:
 
 ```bash
-doctl serverless functions invoke registry-housekeeper/housekeeper
+npm run invoke
 ```
 
 ### View Logs
 
 ```bash
-doctl serverless activations logs --last
+npm run logs
 ```
 
 ## How It Works
@@ -141,11 +126,10 @@ To free storage after untagging, either:
 
 Before enabling actual untagging, test with dry run mode:
 
-1. Set `DRY_RUN=true` in your `.env`
-2. Deploy: `doctl serverless deploy .`
-3. Run: `doctl serverless functions invoke registry-housekeeper/housekeeper`
-4. Check logs to see what would be removed
-5. When satisfied, set `DRY_RUN=false` and redeploy
+1. `npm run deploy:dry` (overrides Doppler's `DRY_RUN` to `true` for this deploy only)
+2. `npm run invoke`
+3. `npm run logs` — confirm the listed `tagsRemoved` entries match what you expect
+4. When satisfied, `npm run deploy` to redeploy with the Doppler-stored `DRY_RUN` value (`false` in prd)
 
 ## Example Output
 
@@ -192,13 +176,17 @@ limits:
   memory: 256
 ```
 
-Then redeploy with `doctl serverless deploy .`
+Then redeploy with `npm run deploy`.
 
 ## Troubleshooting
 
 ### "DO_API_TOKEN environment variable is required"
 
-Make sure your `.env` file exists and contains a valid token, then redeploy.
+Doppler isn't injecting secrets into the deploy. Check:
+
+- `doppler whoami` — are you logged in?
+- `doppler secrets` (run from the repo root) — does it show `DO_API_TOKEN`?
+- Did you use `npm run deploy` (Doppler-wrapped) rather than a bare `doctl serverless deploy .`?
 
 ### "DO API error (401)"
 
@@ -221,11 +209,11 @@ This is a known issue with DO Functions scheduler triggers. Set up the trigger m
 For large registries, the function may run asynchronously. Use `--no-wait` to get the activation ID, then check results:
 
 ```bash
-doctl serverless functions invoke registry-housekeeper/housekeeper --no-wait
+doctl --context squidcode serverless functions invoke registry-housekeeper/housekeeper --no-wait
 # Returns: {"activationId": "abc123..."}
 
 # Check result (after a minute or so)
-doctl serverless activations result abc123...
+doctl --context squidcode serverless activations result abc123...
 ```
 
 ## Contributing
