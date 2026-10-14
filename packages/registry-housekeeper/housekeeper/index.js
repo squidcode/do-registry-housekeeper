@@ -108,6 +108,29 @@ async function untagImage(registryName, repositoryName, tag) {
   });
 }
 
+// Floating tags that hosts pull by name (squidserver runs every service from :latest)
+const PROTECTED_TAGS = new Set(['latest', 'stable']);
+
+/**
+ * "<repository>:<tag>" for every DOCR image a live App Platform app component is pinned to.
+ * Throws if the app list can't be read: without it we can't tell what's safe to untag.
+ */
+async function listPinnedAppTags() {
+  const pinned = new Set();
+  const { apps = [] } = await doApiRequest('/apps?per_page=200');
+  for (const app of apps) {
+    for (const kind of ['services', 'workers', 'jobs', 'static_sites']) {
+      for (const component of app.spec?.[kind] || []) {
+        const image = component.image;
+        if (image?.registry_type === 'DOCR') {
+          pinned.add(`${image.repository}:${image.tag || 'latest'}`);
+        }
+      }
+    }
+  }
+  return pinned;
+}
+
 /**
  * Main function entry point
  */
@@ -152,6 +175,10 @@ async function main(_args) {
   };
 
   try {
+    // Tags pinned by live App Platform apps are never untagged
+    const pinned = await listPinnedAppTags();
+    console.log(`Pinned by App Platform apps: ${[...pinned].join(', ') || 'none'}`);
+
     // List all repositories
     const repositories = await listRepositories(registryName);
     console.log(`Found ${repositories.length} repositories`);
@@ -171,22 +198,30 @@ async function main(_args) {
         repoResult.tagsFound = tags.length;
         console.log(`Repository ${repoName}: ${tags.length} tags found`);
 
-        if (tags.length <= maxTags) {
-          console.log(`  Skipping: ${tags.length} tags <= ${maxTags} max`);
+        // Never untag what's running: floating tags (squidserver pulls :latest) and any tag a live
+        // App Platform app is pinned to. Sorting by updated_at alone is not safe: a registry GC
+        // rewrites updated_at on old tags, which pushed ideasberg-frontend:latest out of the
+        // newest 10 (2026-10-14).
+        const isProtected = (t) => PROTECTED_TAGS.has(t.tag) || pinned.has(`${repoName}:${t.tag}`);
+        const protectedTags = tags.filter(isProtected);
+        const candidates = tags.filter((t) => !isProtected(t));
+
+        if (candidates.length <= maxTags) {
+          console.log(`  Skipping: ${candidates.length} unprotected tags <= ${maxTags} max`);
           repoResult.tagsKept = tags.map((t) => t.tag);
           results.repositories.push(repoResult);
           continue;
         }
 
-        // Sort tags by updated_at timestamp (newest first)
-        const sortedTags = tags.sort((a, b) => {
+        // Sort the unprotected tags by updated_at timestamp (newest first)
+        const sortedTags = candidates.sort((a, b) => {
           const dateA = new Date(a.updated_at);
           const dateB = new Date(b.updated_at);
           return dateB - dateA;
         });
 
-        // Keep the newest tags, untag the rest
-        const tagsToKeep = sortedTags.slice(0, maxTags);
+        // Keep the protected tags plus the newest unprotected ones, untag the rest
+        const tagsToKeep = [...protectedTags, ...sortedTags.slice(0, maxTags)];
         const tagsToRemove = sortedTags.slice(maxTags);
 
         repoResult.tagsKept = tagsToKeep.map((t) => t.tag);
