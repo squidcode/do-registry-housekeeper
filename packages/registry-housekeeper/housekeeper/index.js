@@ -112,23 +112,45 @@ async function untagImage(registryName, repositoryName, tag) {
 const PROTECTED_TAGS = new Set(['latest', 'stable']);
 
 /**
- * "<repository>:<tag>" for every DOCR image a live App Platform app component is pinned to.
- * Throws if the app list can't be read: without it we can't tell what's safe to untag.
+ * What live App Platform apps run (spec + active/in-progress/pending deployments):
+ * "<repository>:<tag>" pins and "<repository>@<digest>" pins.
+ * Paginates every page; throws if the list can't be read (then we can't tell what's safe).
  */
-async function listPinnedAppTags() {
-  const pinned = new Set();
-  const { apps = [] } = await doApiRequest('/apps?per_page=200');
-  for (const app of apps) {
-    for (const kind of ['services', 'workers', 'jobs', 'static_sites']) {
-      for (const component of app.spec?.[kind] || []) {
-        const image = component.image;
-        if (image?.registry_type === 'DOCR') {
-          pinned.add(`${image.repository}:${image.tag || 'latest'}`);
+async function listPinnedAppImages() {
+  const tags = new Set();
+  const digests = new Set();
+  for (let page = 1; ; page++) {
+    const { apps = [], links } = await doApiRequest(`/apps?per_page=200&page=${page}`);
+    for (const app of apps) {
+      // the spec AND whatever is actually serving or about to: a failed/pending update leaves
+      // the active deployment on an older image than app.spec
+      const specs = [
+        app.spec,
+        app.active_deployment?.spec,
+        app.in_progress_deployment?.spec,
+        app.pending_deployment?.spec,
+      ];
+      for (const spec of specs.filter(Boolean)) {
+        for (const kind of ['services', 'workers', 'jobs', 'static_sites']) {
+          for (const component of spec[kind] || []) {
+            const image = component.image;
+            if (image?.registry_type !== 'DOCR') {
+              continue;
+            }
+            if (image.digest) {
+              digests.add(`${image.repository}@${image.digest}`);
+            } else {
+              tags.add(`${image.repository}:${image.tag || 'latest'}`);
+            }
+          }
         }
       }
     }
+    if (!links?.pages?.next || apps.length === 0) {
+      break;
+    }
   }
-  return pinned;
+  return { tags, digests };
 }
 
 /**
@@ -176,8 +198,10 @@ async function main(_args) {
 
   try {
     // Tags pinned by live App Platform apps are never untagged
-    const pinned = await listPinnedAppTags();
-    console.log(`Pinned by App Platform apps: ${[...pinned].join(', ') || 'none'}`);
+    const pinned = await listPinnedAppImages();
+    console.log(
+      `Pinned by App Platform apps: ${[...pinned.tags, ...pinned.digests].join(', ') || 'none'}`
+    );
 
     // List all repositories
     const repositories = await listRepositories(registryName);
@@ -202,7 +226,10 @@ async function main(_args) {
         // App Platform app is pinned to. Sorting by updated_at alone is not safe: a registry GC
         // rewrites updated_at on old tags, which pushed ideasberg-frontend:latest out of the
         // newest 10 (2026-10-14).
-        const isProtected = (t) => PROTECTED_TAGS.has(t.tag) || pinned.has(`${repoName}:${t.tag}`);
+        const isProtected = (t) =>
+          PROTECTED_TAGS.has(t.tag) ||
+          pinned.tags.has(`${repoName}:${t.tag}`) ||
+          pinned.digests.has(`${repoName}@${t.manifest_digest}`);
         const protectedTags = tags.filter(isProtected);
         const candidates = tags.filter((t) => !isProtected(t));
 
