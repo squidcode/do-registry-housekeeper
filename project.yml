@@ -22,3 +22,9 @@ packages:
         limits:
           timeout: 120000
           memory: 256
+        # weekly; the registry GC that frees the space is a separate step (registry read-only ~1-2 h)
+        triggers:
+          - name: weekly-housekeeping
+            sourceType: scheduler
+            sourceDetails:
+              cron: '0 3 * * 0'
